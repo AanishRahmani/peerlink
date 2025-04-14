@@ -11,6 +11,15 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
+/*
+
+This file manages how peers-
+    - join the PubSub topic[DONE]
+    - broadcast what files they are offering[DONE]
+    - listen for other peers' announcements[DONE]
+    - keep an updated list of available files across the network[DONE]
+*/
+
 var (
 	fileTopic      *pubsub.Topic
 	fileSub        *pubsub.Subscription

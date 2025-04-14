@@ -14,8 +14,39 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
+
+/*
+
+							# OBJECTIVES
+1 handling file request (sending file)
+	- sends 4kb chunks of data (same as page default) to network stream [DONE]
+	- Sends a 0-length chunk (EOF marker) and the final SHA-256 hash for integrity.[DONE]
+2 request file from peer (receiving file)
+	- establish a stream with target peer [DONE]
+	- send the requested file [DONE]
+	- receive and reconstruct inside transferredfile folder
+	- uses a progressbar to visually indicate transfer.
+	- verifies the SHA-256 hash to detect corruption.
+	- prints download stats and refreshes the file listing.
+
+
+-------------------------------------------------------------------------
+
+						# architecture
+Sender                         Receiver
+-----------                    --------
+read chunk ---> send chunk ------------> read chunk
+            |-> hash.Write()         |---> hash.Write()
+
+    [EOF] -> send 0 uint32            <--- read 0 uint32 (EOF)
+           send SHA256 hash          <--- read SHA256 hash
+                                      |---- compare hashes
+--------------------------------------------------------------------------
+
+*/
 
 const chunkSize = 4096 // 4KB
 
@@ -110,6 +141,9 @@ func handleFileRequest(s network.Stream) {
 	showAvailableFiles() // Update display after sending
 	printLock.Unlock()
 }
+func isStreamCancelError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "canceled stream")
+}
 
 func requestFileFromPeer(peerInfo peer.AddrInfo, fileName string) error {
 	log.Printf("[FileTransfer][requestFileFromPeer] 📡 Requesting '%s' from peer %s", fileName, peerInfo.ID)
@@ -125,11 +159,11 @@ func requestFileFromPeer(peerInfo peer.AddrInfo, fileName string) error {
 		return fmt.Errorf("[FileTransfer][requestFileFromPeer] ❌ Stream failed: %w", err)
 	}
 	defer func() {
-		if err := stream.Close(); err != nil {
+		err := stream.Close()
+		if err != nil && !isStreamCancelError(err) {
 			log.Printf("[FileTransfer][requestFileFromPeer] ❌ Error closing stream: %v", err)
 		}
 	}()
-
 	_, _ = stream.Write([]byte(fileName + "\n"))
 	_, _ = stream.Write([]byte{boolToByte(useEncryption)})
 
@@ -179,6 +213,7 @@ func requestFileFromPeer(peerInfo peer.AddrInfo, fileName string) error {
 		if !barFinished {
 			_ = bar.Finish()
 		}
+		fmt.Println()
 	}()
 
 	for {

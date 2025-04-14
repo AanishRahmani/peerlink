@@ -1,0 +1,16 @@
+
+
+
+Peer-to-peer discovery	        mDNS                        [DONE]
+File availability tracking	    PubSub                      [DONE]
+File integrity check	        SHA256                      [DONE]
+Duplicate handling	           via VersionID                [DONE]
+
+
+Metadata consistency	        CRDT                        [WORK IN PROGRESS]
+Encryption	                    Optional AES                [WORK IN PROGRESS]
+Folder sharing	                currently only flat file    [WORK IN PROGRESS]
+
+
+public access key                                           [TO BE IMPLEMENTED]
+RBAC                                                        [TO BE IMPLEMENTED]

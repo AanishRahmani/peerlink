@@ -11,14 +11,20 @@ import (
 	mdns "github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 )
 
-// Service tag used for peer discovery
-const mdnsServiceTag = "p2p-office-mdns-sync"
+/*
 
-// Shared map for storing full AddrInfo of discovered peers
-//var (
-//	knownPeers     = make(map[string]peer.AddrInfo)
-//	knownPeersLock sync.Mutex
-//) // declared in main.go
+					#OBJECTIVES
+1 Discovering peers in the same local network (through mDNS) [DONE]
+2 Automatically connecting to discovered peers (through a hello handshake) [DONE]
+3 Starting CRDT metadata sync after discovery [DONE]
+4 store peer info into known peers (declared in main.go) [done ]
+
+
+*/
+
+// Service tag used for peer discovery think of it like a room if some other person dont have this tag they wont be able to enter the network
+// have to inplement a public key so that a group cant discover another group (in a DLT way)
+const mdnsServiceTag = "p2p-office-mdns-sync"
 
 type mdnsNotifee struct {
 	h host.Host
@@ -53,7 +59,7 @@ func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
 	log.Printf("[mDNS][HandlePeerFound] 🗂️  Stored AddrInfo for peer %s", pi.ID.String())
 
 	// 🔁 Start CRDT metadata sync
-	go runSourceNode(pi)
+	go runSourceNode(pi, "")
 }
 
 // Starts mDNS discovery service
@@ -70,7 +76,7 @@ func startMdnsDiscovery(h host.Host) error {
 	return err
 }
 
-// Extracts IP address from multiaddr string
+// Extracts IP address from multiaddr string (ONLY FOR PRODUCTION PURPOSE)
 func extractIP(addr string) string {
 	if strings.HasPrefix(addr, "/ip4/") || strings.HasPrefix(addr, "/ip6/") {
 		parts := strings.Split(addr, "/")

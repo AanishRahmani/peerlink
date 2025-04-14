@@ -1,15 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -19,20 +15,35 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
-// Global state
-var (
-	localFileMetadata FileMetadata
-	node              host.Host
-	syncedPeers       = make(map[string]bool)
-	usedEncryption    = false
+/*
+1 create node
+	- initializes and returns a new Libp2p host.
+	- calls libp2p.New() to create a P2P node.
 
-	// 👇 Peer store
-	knownPeers     = make(map[string]peer.AddrInfo)
-	knownPeersLock sync.Mutex
 
-	// printLock at the global level
-	printLock sync.Mutex
-)
+3 run target node [DONE]
+	- registers stream handlers on your node.
+	- registers /hello/1.0.0 → CRDT Metadata sync.
+	- registers /file-transfer/1.0.0 → File download.
+	- Returns peer address info for advertisement.
+
+4 run source node [DONE]
+	- initiates metadata sync with a specific peer.
+	- connects to the target peer.
+	- opens a /hello/1.0.0 stream.
+	- sends your local file metadata map.
+	- receives peer’s metadata map.
+	- merges remote and local metadata using MergeFileMetadata.
+	- Saves merged metadata to disk (sync-metadata.json).
+
+5 read hello protocol [DONE]
+	- handle metadata received from a peer when they initiate sync.
+	- receives the peer’s metadata map.
+	- merges it into your local map.
+	- sends your metadata map back.
+
+
+*/
 
 func createNode() host.Host {
 	node, err := libp2p.New()
@@ -72,7 +83,7 @@ func runTargetNode(h host.Host) peer.AddrInfo {
 	return *host.InfoFromHost(h)
 }
 
-func runSourceNode(targetNodeInfo peer.AddrInfo) {
+func runSourceNode(targetNodeInfo peer.AddrInfo, requestedFile string) {
 	log.Printf("[CRDT][runSourceNode] 🔁 Syncing to peer %s", targetNodeInfo.ID.String())
 
 	if err := node.Connect(context.Background(), targetNodeInfo); err != nil {
@@ -85,37 +96,54 @@ func runSourceNode(targetNodeInfo peer.AddrInfo) {
 		log.Printf("[CRDT][runSourceNode] ❌ Stream open failed: %s", err.Error())
 		return
 	}
+	defer stream.Close()
 
-	log.Println("[CRDT][runSourceNode] 📤 Sending local metadata...")
-	if err := SendMetadata(stream, localFileMetadata); err != nil {
+	log.Println("[CRDT][runSourceNode] 📤 Sending local metadata for all files...")
+	if err := SendMetadataMap(stream, fileMetadataMap); err != nil {
 		log.Println("[CRDT][runSourceNode] ❌ Send error:", err)
 		return
 	}
 
-	remoteMeta, err := ReceiveMetadata(stream)
+	remoteMetaMap, err := ReceiveMetadataMap(stream)
 	if err != nil {
 		log.Println("[CRDT][runSourceNode] ❌ Receive error:", err)
 		return
 	}
 
-	localFileMetadata = MergeFileMetadata(localFileMetadata, remoteMeta)
-	log.Println("[CRDT][runSourceNode] ✅ Merged metadata from remote:")
-	PrintMetadata(localFileMetadata)
+	for name, remoteMeta := range remoteMetaMap {
+		localMeta := fileMetadataMap[name]
+		fileMetadataMap[name] = MergeFileMetadata(localMeta, remoteMeta)
+		log.Printf("[CRDT][runSourceNode] ✅ Merged metadata for file: %s", name)
 
-	_ = stream.Close()
+		if name == requestedFile {
+			log.Printf("[CRDT][runSourceNode] 📄 Printing metadata for transferred file: %s", name)
+			PrintMetadata(fileMetadataMap[name])
+		}
+	}
+	// Save merged metadata
+	if err := saveMetadataToFile("sync-metadata.json"); err != nil {
+		log.Printf("[CRDT][runSourceNode] ⚠️ Failed to save metadata to file: %v", err)
+	} else {
+		log.Println("[CRDT][runSourceNode] 💾 Metadata saved to sync-metadata.json")
+	}
+
 }
 
 func readHelloProtocol(s network.Stream) error {
-	remoteMeta, err := ReceiveMetadata(s)
+	remoteMetaMap, err := ReceiveMetadataMap(s)
 	if err != nil {
 		return err
 	}
 
 	peerID := s.Conn().RemotePeer()
-	log.Printf("[CRDT][readHelloProtocol] 📥 Received metadata from %s", peerID)
-	localFileMetadata = MergeFileMetadata(localFileMetadata, remoteMeta)
+	log.Printf("[CRDT][readHelloProtocol] 📥 Received metadata map from %s", peerID)
 
-	if err := SendMetadata(s, localFileMetadata); err != nil {
+	for name, remoteMeta := range remoteMetaMap {
+		localMeta := fileMetadataMap[name]
+		fileMetadataMap[name] = MergeFileMetadata(localMeta, remoteMeta)
+	}
+
+	if err := SendMetadataMap(s, fileMetadataMap); err != nil {
 		return err
 	}
 
@@ -123,7 +151,7 @@ func readHelloProtocol(s network.Stream) error {
 		syncedPeers[peerID.String()] = true
 		go func() {
 			log.Printf("[CRDT][readHelloProtocol] 🔁 Syncing back to %s", peerID)
-			runSourceNode(peer.AddrInfo{ID: peerID})
+			runSourceNode(peer.AddrInfo{ID: peerID}, "") // 👈 no file being requested
 		}()
 	}
 
@@ -131,13 +159,11 @@ func readHelloProtocol(s network.Stream) error {
 }
 
 func main() {
-	// Add this in main() near the beginning
+	// Recovery block
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("FATAL: Recovered from panic: %v\n", r)
-			// Print stack trace
 			debug.PrintStack()
-			// Wait a bit before exiting to see the logs
 			time.Sleep(5 * time.Second)
 		}
 	}()
@@ -145,28 +171,51 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Encryption CLI flag
 	encryptFlag := flag.Bool("E", false, "Enable AES encryption for file transfer")
 	flag.Parse()
 	usedEncryption = *encryptFlag
 
 	log.Println("[INIT] 🚀 Starting P2P File Sync Node...")
 
-	localFileMetadata = FileMetadata{
-		FileName: "example.txt",
-		Versions: make(map[string]FileVersion),
-		Heads:    []string{},
-	}
+	// ✅ Create node first
+	node = createNode()
+	log.Printf("[INIT] 🆔 Peer ID: %s", node.ID().String())
 
 	hostname, _ := os.Hostname()
 	log.Printf("[INIT] 🖥️ Hostname: %s", hostname)
 
-	node = createNode()
-	log.Printf("[INIT] 🆔 Peer ID: %s", node.ID().String())
+	// ✅ Now you can generate versions safely
+	files, err := os.ReadDir("shared")
+	if err != nil {
+		log.Fatalf("[INIT] ❌ Failed to read shared directory: %v", err)
+	}
 
-	version := NewFileVersion(node.ID().String(), "initial upload from "+hostname, "CID123456", nil)
-	localFileMetadata.AddVersion(version)
-	log.Println("[CRDT][main] 📝 Local file version created")
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		fileName := f.Name()
+		version := NewFileVersion(node.ID().String(), "initial upload from "+hostname, "CID_"+fileName, nil)
+
+		meta := FileMetadata{
+			FileName: fileName,
+			Versions: make(map[string]FileVersion),
+			Heads:    []string{},
+		}
+		meta.AddVersion(version)
+		fileMetadataMap[fileName] = meta
+
+		log.Printf("[INIT] ✅ File '%s' added to metadata map", fileName)
+	}
+
+	// Optional: create a dummy local version for internal syncing
+	localFileMetadata = FileMetadata{
+		FileName: "sync-metadata.json",
+		Versions: make(map[string]FileVersion),
+		Heads:    []string{},
+	}
+	syncVersion := NewFileVersion(node.ID().String(), "initial metadata", "CID123456", nil)
+	localFileMetadata.AddVersion(syncVersion)
 
 	_ = runTargetNode(node)
 
@@ -185,90 +234,12 @@ func main() {
 
 	go func() {
 		log.Println("[PubSub] ⏳ Waiting for peer discovery and topic mesh...")
-		time.Sleep(15 * time.Second) // Give peers time to join and discover each other
+		time.Sleep(15 * time.Second)
 		log.Println("[PubSub] 📢 Sending initial file announcement...")
 		announceLocalFiles(node.ID().String())
-
-		// Show available files after initial announcement
-		//printLock.Lock()
-		//showAvailableFiles()
-		//printLock.Unlock()
-	}()
-	go func() {
-		time.Sleep(16 * time.Second)
-		reader := bufio.NewReader(os.Stdin)
-
-		for {
-			printLock.Lock()
-			showAvailableFiles()
-			fmt.Println("📁 Enter file name to download, '' to re-announce (leave input empty and press Enter), or press Ctrl+C to exit:")
-			fmt.Print("> ")
-			printLock.Unlock()
-
-			inputRaw, err := reader.ReadString('\n')
-			if err != nil {
-				printLock.Lock()
-				log.Println("[CLI] ⚠️ Input error:", err)
-				printLock.Unlock()
-				continue
-			}
-
-			input := strings.TrimSpace(inputRaw)
-
-			if input == "" {
-				printLock.Lock()
-				log.Println("[CLI] 🔁 Manual refresh triggered (empty input).")
-				printLock.Unlock()
-				announceLocalFiles(node.ID().String())
-				continue
-			}
-
-			fileRequested := input
-			found := false
-
-			knownFilesLock.Lock()
-			for peerID, fileList := range knownFiles {
-				if peerID == node.ID().String() {
-					continue
-				}
-				for _, file := range fileList {
-					if file == fileRequested {
-						knownPeersLock.Lock()
-						peerInfo, ok := knownPeers[peerID]
-						knownPeersLock.Unlock()
-
-						if ok {
-							printLock.Lock()
-							log.Printf("[CLI] 📥 Requesting file '%s' from peer %s...", fileRequested, peerID)
-							printLock.Unlock()
-
-							err := requestFileFromPeer(peerInfo, fileRequested)
-							if err != nil {
-								printLock.Lock()
-								log.Printf("[CLI] ❌ File request failed: %v", err)
-								printLock.Unlock()
-							}
-
-							// Post-transfer available files view will be handled inside requestFileFromPeer
-							found = true
-							break
-						}
-					}
-				}
-				if found {
-					break
-				}
-			}
-			knownFilesLock.Unlock()
-
-			if !found {
-				printLock.Lock()
-				log.Printf("[CLI] ⚠️ File '%s' not found in known announcements.", fileRequested)
-				printLock.Unlock()
-			}
-		}
 	}()
 
+	startInteractiveCLI(ctx)
 	log.Println("[READY] ✅ Node is up and running. Press Ctrl+C to exit.")
 	<-ctx.Done()
 }
