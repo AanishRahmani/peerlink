@@ -115,3 +115,9 @@ go build -o peerlink
 - [ ] **Metadata Sync for every file imdividually** — Improved CRDT for folder structures, not just files kind of like git.
 - [ ] **Web UI for File Management** — Beautiful browser-based dashboard.
 ---
+
+## License
+
+This project includes original work from Protocol Labs.
+
+Additional contributions and a lot of modifications by **Aanish Rahmani** are licensed under the [MIT License](./LICENSES/LICENSE.AANISH).
