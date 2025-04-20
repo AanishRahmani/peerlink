@@ -77,7 +77,7 @@ shared/ folder                     TransferredFiles/ folder
 ---
 ## Quick Start
 
-1. Install Go 1.20+ prefferably `go1.24.2`
+1. Install Go 1.20+ prefferably `go1.23.0`
 2. Clone the repository.
 4. Run `go mod download`.
 5. make sure you have a `/shared/` and a `/TransferredFolder/` folder.

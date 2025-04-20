@@ -27,4 +27,4 @@ Metadata Sync for every file imdividually — Improved CRDT for folder structure
 Web UI for File Management — Beautiful browser-based dashboard.
 
 
-👉 Check out the project on GitHub https://github.com/AanishRahmani/peerlink and feel free to contribute or provide feedback!
+Check out the project on GitHub https://github.com/AanishRahmani/peerlink and feel free to contribute or provide feedback!
