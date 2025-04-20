@@ -9,8 +9,8 @@ It allows peers to:
 
 - Discover each other automatically on the local network via **mDNS**.
 - Share and sync **files and folders**.
-- Track **file versions** in a **Git-like CRDT model** for conflict-free updates.
-- Transfer **entire directories** while maintaining structure.
+- Track **file versions** in a **Git-like CRDT model** for conflict-free updates (work in progress).
+- Transfer **entire directories** while maintaining the structure.
 - Ensure **integrity** through **SHA-256** hash verification.
 - Visualize transfer progress via a terminal **progress bar**.
 

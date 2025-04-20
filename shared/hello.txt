@@ -1,0 +1,30 @@
+hello everyone how aqre you guyssss
+
+Introducing My P2P File Sharing System
+
+I’ve developed a P2P File Sharing System that allows secure and efficient file sharing over a local network. The system focuses on peer discovery, (versioning, access control, and manual auditing, to be developed) providing a seamless and decentralized solution for sharing files between devices.
+Key Features:
+
+    Discover each other automatically on the local network via mDNS.
+    Share and sync files and folders.
+    Track file versions in a Git-like CRDT model for conflict-free updates (work in progress).
+    Transfer entire directories while maintaining structure.
+    Ensure integrity through SHA-256 hash verification.
+    Visualize transfer progress via a terminal progress bar.
+
+Technologies Used:
+
+    Golang
+
+whats next:
+
+Encryption — Encrypting the data stream using AES-256 along with encrypting the metadata file, the network over which the data is transferred, and the peer-to-peer protocol.
+Public security key — Using a public key for authenticating that the right person is accessing the right network.
+RBAC (Role-Based Access Control) — Using a Public Access Key in the mDNS discovery so only authorized peers can join.
+Request Queue (in progress) — Handling multiple simultaneous incoming file requests via a channel.
+Queue Management Enhancements — Smarter backpressure control and retries.
+Metadata Sync for every file imdividually — Improved CRDT for folder structures, not just files kind of like git.
+Web UI for File Management — Beautiful browser-based dashboard.
+
+
+👉 Check out the project on GitHub https://github.com/AanishRahmani/peerlink and feel free to contribute or provide feedback!
