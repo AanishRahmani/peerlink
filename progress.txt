@@ -14,3 +14,5 @@ Folder sharing	                currently only flat file    [WORK IN PROGRESS]
 
 public access key                                           [TO BE IMPLEMENTED]
 RBAC                                                        [TO BE IMPLEMENTED]
+network traffic encryption                                  [TO BE IMPLEMENTED]
+

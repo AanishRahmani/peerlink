@@ -21,20 +21,6 @@ These enhancements include (but are not limited to):
 - Custom handling for secure, structured, peer-based synchronization.
 
 ---
-
-## Terms of Use for This Modified Project
-
-- This project is open source and welcomes contributions and reuse, **as long as proper credit is given**.
-- All users and contributors must:
-    - **Credit Aanish Rahmani** as the lead developer and maintainer.
-    - **Include this `NOTICE.md`** in any forks or derivative projects.
-    - **Inform or collaborate with Aanish** when building upon this project, especially for significant changes or deployments.
-- Contributions should preferably be made via **pull requests** to keep the development collaborative and transparent.
-- This project is **actively maintained**, and direction or official releases are guided by **Aanish Rahmani**.
-
----
-
-
 ## Contact
 
 If you wish to work together or use this code for your own projects:

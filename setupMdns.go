@@ -32,12 +32,12 @@ type mdnsNotifee struct {
 
 // Called when a peer is discovered via mDNS
 func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
-	log.Printf("[mDNS][HandlePeerFound] 📡 Found peer ID: %s", pi.ID.String())
-	log.Printf("[mDNS][HandlePeerFound] 🔌 Addrs: %v", pi.Addrs)
+	log.Printf("[setupMDNS][HandlePeerFound] Found peer ID: %s", pi.ID.String())
+	log.Printf("[setupMDNS][HandlePeerFound] Addrs: %v", pi.Addrs)
 
 	// Try connecting to peer
 	if err := n.h.Connect(context.Background(), pi); err != nil {
-		log.Printf("[mDNS][HandlePeerFound] ❌ Failed to connect to %s: %v", pi.ID.String(), err)
+		log.Printf("[setupMDNS][HandlePeerFound] Failed to connect to %s: %v", pi.ID.String(), err)
 		return
 	}
 
@@ -50,13 +50,13 @@ func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
 		}
 	}
 
-	log.Printf("[mDNS][HandlePeerFound] ✅ Connected to peer %s at IP %s", pi.ID.String(), peerIP)
+	log.Printf("[setupMDNS][HandlePeerFound] Connected to peer %s at IP %s", pi.ID.String(), peerIP)
 
 	// 🔐 Store AddrInfo for file transfers
 	knownPeersLock.Lock()
 	knownPeers[pi.ID.String()] = pi
 	knownPeersLock.Unlock()
-	log.Printf("[mDNS][HandlePeerFound] 🗂️  Stored AddrInfo for peer %s", pi.ID.String())
+	log.Printf("[setupMDNS][HandlePeerFound] Stored AddrInfo for peer %s", pi.ID.String())
 
 	// 🔁 Start CRDT metadata sync
 	go runSourceNode(pi, "")
@@ -64,14 +64,14 @@ func (n *mdnsNotifee) HandlePeerFound(pi peer.AddrInfo) {
 
 // Starts mDNS discovery service
 func startMdnsDiscovery(h host.Host) error {
-	log.Printf("[mDNS][startMdnsDiscovery] 🚀 Starting mDNS with tag '%s'", mdnsServiceTag)
+	log.Printf("[setupMDNS][startMdnsDiscovery] Starting mDNS with tag '%s'", mdnsServiceTag)
 
 	service := mdns.NewMdnsService(h, mdnsServiceTag, &mdnsNotifee{h: h})
 	err := service.Start()
 	if err != nil {
-		log.Printf("[mDNS][startMdnsDiscovery] ❌ Failed to start mDNS: %v", err)
+		log.Printf("[setupMDNS][startMdnsDiscovery] Failed to start mDNS: %v", err)
 	} else {
-		log.Printf("[mDNS][startMdnsDiscovery] ✅ mDNS service started successfully")
+		log.Printf("[setupMDNS][startMdnsDiscovery] mDNS service started successfully")
 	}
 	return err
 }

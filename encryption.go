@@ -21,7 +21,10 @@ func encryptAndCompress(input []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	writer.Close()
+	errs := writer.Close()
+	if errs != nil {
+		return nil, errs
+	}
 
 	// Encrypt
 	block, err := aes.NewCipher(encryptionKey)
