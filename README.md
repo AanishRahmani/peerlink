@@ -98,6 +98,7 @@ go build -o peerlink
 
 
 5. Use the interactive CLI to request files!
+6. make sure you have files in shared folder.
 
 ---
 
