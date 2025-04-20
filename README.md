@@ -92,13 +92,16 @@ mkdir shared                  # Files you want to share with the network
 mkdir TransferredFiles        # Files you download from other peers
 touch sync-metadata.json       # File storing CRDT versioning information (Needs Improvements to be able to handle files on an idividual level )
 go mod download
+```
+5. make sure you have files in the shared folder.
+
+```bash
 go build -o peerlink
 ./peerlink 
 ```
 
 
-5. Use the interactive CLI to request files!
-6. make sure you have files in shared folder.
+6. Use the interactive CLI to request files!
 
 ---
 
